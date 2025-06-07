@@ -3,9 +3,6 @@ from abc import ABC, abstractmethod
 
 
 class Function(ABC):
-    def __init__(self, hessian_needed=True):
-        self.hessian_needed = hessian_needed
-
     @abstractmethod
     def objective(self, x) -> float:
         pass
@@ -19,33 +16,80 @@ class Function(ABC):
         pass
 
 
-class QuadraticFunction(Function):
-    def __init__(self, Q, b=np.zeros(2), c=0.0):
-        super().__init__(hessian_needed=True)
-        self.A = 2 * Q
-        self.b = b
-        self.c = c
+class QuadraticFunctionWithConstraints(Function):
+    def __init__(self):
+        super().__init__()
+        self.equality_constraints_mat = np.array([[1, 1, 1]])
+        self.equality_constraints_rhs = np.array([1])
+        self.inequality_constraints = [
+            InequalityConstraint(
+                f=lambda x: x[i],
+                g=lambda _: np.array([0 if j != i else 1 for j in range(3)]),
+                h=lambda _: np.array([[0, 0, 0]]),
+            )
+            for i in range(3)
+        ]
 
-    def objective(self, x) -> float:
-        return 0.5 * x.T @ self.A @ x + self.b @ x + self.c
+    def objective(self, x):
+        return x[0] ** 2 + x[1] ** 2 + (x[2] + 1) ** 2
 
-    def gradient(self, x) -> np.ndarray:
-        return self.A @ x + self.b
+    def gradient(self, x):
+        return np.array([2 * x[0], 2 * x[1], 2 * (x[2] + 1)])
 
-    def hessian(self, x) -> np.ndarray:
-        return self.A
+    def hessian(self, x):
+        return np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
 
 
-class LinearFunction(Function):
-    def __init__(self, a):
-        super().__init__(hessian_needed=False)
-        self.a = a
+class LinearFunctionWithConstraints(Function):
+    def __init__(self):
+        super().__init__()
+        self.equality_constraints_mat = np.array([[]])
+        self.equality_constraints_rhs = np.array([])
+        self.inequality_constraints = [
+            InequalityConstraint(
+                f=lambda x: x[1] + x[0] - 1,
+                g=lambda _: np.array([1, 1, 0]),
+                h=lambda _: np.array([[0, 0, 0]]),
+            ),
+            InequalityConstraint(
+                f=lambda x: 2 - x[0],
+                g=lambda _: np.array([-1, 0, 0]),
+                h=lambda _: np.array([[0, 0, 0]]),
+            ),
+            InequalityConstraint(
+                f=lambda x: 1 - x[1],
+                g=lambda _: np.array([0, -1, 0]),
+                h=lambda _: np.array([[0, 0, 0]]),
+            ),
+            InequalityConstraint(
+                f=lambda x: x[1],
+                g=lambda _: np.array([0, 0, 1]),
+                h=lambda _: np.array([[0, 0, 0]]),
+            ),
+        ]
 
-    def objective(self, x) -> float:
-        return self.a @ x
+    def objective(self, x):
+        return -(x[0] + x[1])
 
-    def gradient(self, x) -> np.ndarray:
-        return self.a
+    def gradient(self, x):
+        return np.array([-1, -1, 0])
 
-    def hessian(self, x) -> np.ndarray:
-        return np.zeros((len(self.a), len(self.a)))
+    def hessian(self, x):
+        return np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
+
+
+class InequalityConstraint(Function):
+    def __init__(self, f, g, h):
+        super().__init__()
+        self.f = f
+        self.g = g
+        self.h = h
+
+    def objective(self, x):
+        return self.f(x)
+
+    def gradient(self, x):
+        return self.g(x)
+
+    def hessian(self, x):
+        return self.h(x)
