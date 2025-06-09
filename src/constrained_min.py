@@ -31,6 +31,7 @@ class InteriorPoint:
         self.outer_loop_max_iter = outer_loop_max_iter
 
         self.history = [(self.current_x, self.current_fx)]
+        self.outer_history = []
         self.success = False
         self.output_message = ""
 
@@ -38,9 +39,21 @@ class InteriorPoint:
         alpha = 1.0
         for _ in range(max_backtrack):
             new_x = x + alpha * d
+
+            feasible = True
+            for c in self.ineq_constraints:
+                if c.objective(new_x) >= 0:
+                    feasible = False
+                    break
+
+            if not feasible:
+                alpha *= rho
+                continue
+
             new_fx = self.func.objective(new_x)
             if new_fx <= fx + c1 * alpha * np.dot(gx, d):
                 return alpha
+
             alpha *= rho
         return alpha
 
@@ -51,26 +64,32 @@ class InteriorPoint:
         while current_itteration < max_iter:
             barrier_hessian = barrier.hessian(self.current_x)
             barrier_gradient = barrier.gradient(self.current_x)
-            left_hand_side_matrix = np.block(
-                [
-                    [barrier_hessian, self.eq_constraints_mat.T],
+
+            # Handle the case where there are no equality constraints
+            if self.eq_constraints_mat.size == 0:
+                left_hand_side_matrix = barrier_hessian
+                right_hand_side_vector = -barrier_gradient
+            else:
+                left_hand_side_matrix = np.block(
                     [
-                        self.eq_constraints_mat,
-                        np.zeros(
-                            (
-                                self.eq_constraints_mat.shape[0],
-                                self.eq_constraints_mat.shape[0],
-                            )
-                        ),
-                    ],
-                ]
-            )
-            right_hand_side_vector = np.concatenate(
-                [
-                    -barrier_gradient,
-                    np.zeros(self.eq_constraints_mat.shape[0]),
-                ]
-            )
+                        [barrier_hessian, self.eq_constraints_mat.T],
+                        [
+                            self.eq_constraints_mat,
+                            np.zeros(
+                                (
+                                    self.eq_constraints_mat.shape[0],
+                                    self.eq_constraints_mat.shape[0],
+                                )
+                            ),
+                        ],
+                    ]
+                )
+                right_hand_side_vector = np.concatenate(
+                    [
+                        -barrier_gradient,
+                        np.zeros(self.eq_constraints_mat.shape[0]),
+                    ]
+                )
 
             try:
                 step_direction = np.linalg.solve(
@@ -79,7 +98,12 @@ class InteriorPoint:
             except np.linalg.LinAlgError as e:
                 self.output_message = f"Linear algebra error: {e}"
                 return False
-            step_direction = step_direction[: len(self.current_x)]
+
+            # If no equality constraints, the step direction is already correct
+            if self.eq_constraints_mat.size == 0:
+                pass  # step_direction is already what we want
+            else:
+                step_direction = step_direction[: len(self.current_x)]
 
             lambda_current = np.sqrt(
                 step_direction.T @ barrier_hessian @ step_direction
@@ -102,17 +126,20 @@ class InteriorPoint:
 
     def minimize(self):
         outer_loop_iter = 0
+        m = len(self.ineq_constraints)
 
         while outer_loop_iter < self.outer_loop_max_iter:
+            self.outer_history.append(
+                (self.current_x.copy(), self.func.objective(self.current_x))
+            )
             if not self.inner_loop():
                 return False
 
-            if self.ineq_constraints.shape[0] >= self.outer_loop_epsilon * self.t:
-                self.t *= self.mu
-            else:
+            if m / self.t < self.outer_loop_epsilon:
                 self.success = True
                 return True
 
+            self.t *= self.mu
             outer_loop_iter += 1
 
         self.output_message = (
@@ -138,17 +165,15 @@ class BarrierFunction(Function):
         penalty_grad = sum(
             -1 / c.objective(x) * c.gradient(x) for c in self.ineq_constraints
         )
-        return func_grad + penalty_grad
+        return func_grad + (1 / self.t) * penalty_grad
 
     def hessian(self, x) -> np.ndarray:
         func_hess = self.func.hessian(x)
         first_term_hess = sum(
-            (1 / (self.t * c.objective(x) ** 2))
-            * np.outer(c.gradient(x), c.gradient(x))
+            (1 / (c.objective(x) ** 2)) * np.outer(c.gradient(x), c.gradient(x))
             for c in self.ineq_constraints
         )
         second_term_hess = sum(
             (-1 / c.objective(x)) * c.hessian(x) for c in self.ineq_constraints
         )
-
-        return func_hess + first_term_hess + second_term_hess
+        return func_hess + (1 / self.t) * (first_term_hess + second_term_hess)
