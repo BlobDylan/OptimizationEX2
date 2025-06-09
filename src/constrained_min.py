@@ -1,5 +1,6 @@
 import numpy as np
 from tests.examples import Function
+from src.barrier import BarrierFunction
 
 
 class InteriorPoint:
@@ -65,7 +66,6 @@ class InteriorPoint:
             barrier_hessian = barrier.hessian(self.current_x)
             barrier_gradient = barrier.gradient(self.current_x)
 
-            # Handle the case where there are no equality constraints
             if self.eq_constraints_mat.size == 0:
                 left_hand_side_matrix = barrier_hessian
                 right_hand_side_vector = -barrier_gradient
@@ -99,9 +99,8 @@ class InteriorPoint:
                 self.output_message = f"Linear algebra error: {e}"
                 return False
 
-            # If no equality constraints, the step direction is already correct
             if self.eq_constraints_mat.size == 0:
-                pass  # step_direction is already what we want
+                pass
             else:
                 step_direction = step_direction[: len(self.current_x)]
 
@@ -146,34 +145,3 @@ class InteriorPoint:
             "Maximum outer loop iterations reached without convergence."
         )
         return False
-
-
-class BarrierFunction(Function):
-
-    def __init__(self, func: Function, ineq_constraints: list[Function], t: float):
-        super().__init__(hessian_needed=func.hessian_needed)
-        self.func = func
-        self.ineq_constraints = ineq_constraints
-        self.t = t
-
-    def objective(self, x) -> float:
-        penalty = sum(-np.log(-c.objective(x)) for c in self.ineq_constraints)
-        return self.func.objective(x) + (1 / self.t) * penalty
-
-    def gradient(self, x) -> np.ndarray:
-        func_grad = self.func.gradient(x)
-        penalty_grad = sum(
-            -1 / c.objective(x) * c.gradient(x) for c in self.ineq_constraints
-        )
-        return func_grad + (1 / self.t) * penalty_grad
-
-    def hessian(self, x) -> np.ndarray:
-        func_hess = self.func.hessian(x)
-        first_term_hess = sum(
-            (1 / (c.objective(x) ** 2)) * np.outer(c.gradient(x), c.gradient(x))
-            for c in self.ineq_constraints
-        )
-        second_term_hess = sum(
-            (-1 / c.objective(x)) * c.hessian(x) for c in self.ineq_constraints
-        )
-        return func_hess + (1 / self.t) * (first_term_hess + second_term_hess)

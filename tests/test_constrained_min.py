@@ -2,17 +2,7 @@
 import numpy as np
 import os
 
-try:
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-
-    MATPLOTLIB_AVAILABLE = True
-except ImportError:
-    print("WARNING: Matplotlib not available, skipping plots")
-    MATPLOTLIB_AVAILABLE = False
+import matplotlib.pyplot as plt
 from src.constrained_min import InteriorPoint
 from tests.examples import (
     QuadraticFunctionWithConstraints,
@@ -50,50 +40,48 @@ class TestConstrainedMin(unittest.TestCase):
             f"x≥0: {final_x[0]>=0}, y≥0: {final_x[1]>=0}, z≥0: {final_x[2]>=0}"
         )
 
-        if MATPLOTLIB_AVAILABLE:
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection="3d")
 
-            fig = plt.figure(figsize=(10, 8))
-            ax = fig.add_subplot(111, projection="3d")
+        vertices = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        ax.plot_trisurf(
+            vertices[:, 0], vertices[:, 1], vertices[:, 2], alpha=0.2, color="green"
+        )
 
-            vertices = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-            ax.plot_trisurf(
-                vertices[:, 0], vertices[:, 1], vertices[:, 2], alpha=0.2, color="green"
-            )
+        path = np.array(outer_hist)
+        ax.plot(
+            path[:, 0],
+            path[:, 1],
+            path[:, 2],
+            "bo-",
+            markersize=4,
+            label="Central Path",
+        )
+        ax.scatter(*final_x, color="red", s=100, label="Solution")
 
-            path = np.array(outer_hist)
-            ax.plot(
-                path[:, 0],
-                path[:, 1],
-                path[:, 2],
-                "bo-",
-                markersize=4,
-                label="Central Path",
-            )
-            ax.scatter(*final_x, color="red", s=100, label="Solution")
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.set_title("QP: Central Path in 3D")
 
-            ax.set_xlabel("X")
-            ax.set_ylabel("Y")
-            ax.set_zlabel("Z")
-            ax.set_title("QP: Central Path in 3D")
+        feasible_proxy = plt.Rectangle((0, 0), 1, 1, color="green", alpha=0.2)
+        handles, labels = ax.get_legend_handles_labels()
+        handles.insert(0, feasible_proxy)
+        labels.insert(0, "Feasible Region")
+        ax.legend(handles, labels)
 
-            feasible_proxy = plt.Rectangle((0, 0), 1, 1, color="green", alpha=0.2)
-            handles, labels = ax.get_legend_handles_labels()
-            handles.insert(0, feasible_proxy)
-            labels.insert(0, "Feasible Region")
-            ax.legend(handles, labels)
+        plt.savefig(os.path.join("output", "qp_central_path.png"), dpi=300)
+        plt.close()
 
-            plt.savefig(os.path.join("output", "qp_central_path.png"), dpi=300)
-            plt.close()
-
-            objectives = [obj for _, obj in solver.outer_history]
-            plt.figure(figsize=(10, 6))
-            plt.plot(objectives, "bo-")
-            plt.xlabel("Outer Iteration")
-            plt.ylabel("Objective Value")
-            plt.title("QP: Objective Value vs. Iteration")
-            plt.grid(True)
-            plt.savefig(os.path.join("output", "qp_objective_history.png"), dpi=300)
-            plt.close()
+        objectives = [obj for _, obj in solver.outer_history]
+        plt.figure(figsize=(10, 6))
+        plt.plot(objectives, "bo-")
+        plt.xlabel("Outer Iteration")
+        plt.ylabel("Objective Value")
+        plt.title("QP: Objective Value vs. Iteration")
+        plt.grid(True)
+        plt.savefig(os.path.join("output", "qp_objective_history.png"), dpi=300)
+        plt.close()
 
     def test_lp(self):
         lp = LinearFunctionWithConstraints()
@@ -121,42 +109,40 @@ class TestConstrainedMin(unittest.TestCase):
         print(f"  x ≤ 2: {final_x[0] <= 2}")
         print(f"  y ≥ 0: {final_x[1] >= 0}")
 
-        if MATPLOTLIB_AVAILABLE:
+        plt.figure(figsize=(10, 8))
 
-            plt.figure(figsize=(10, 8))
+        x_vals = np.array([0, 1, 2, 2])
+        y_vals = np.array([1, 0, 0, 1])
 
-            x_vals = np.array([0, 1, 2, 2])
-            y_vals = np.array([1, 0, 0, 1])
+        plt.fill(
+            x_vals,
+            y_vals,
+            "green",
+            alpha=0.2,
+            label="Feasible Region",
+        )
 
-            plt.fill(
-                x_vals,
-                y_vals,
-                "green",
-                alpha=0.2,
-                label="Feasible Region",
-            )
+        path = np.array(outer_hist)
+        plt.plot(path[:, 0], path[:, 1], "bo-", markersize=4, label="Central Path")
+        plt.scatter(*final_x, color="red", s=100, label="Solution")
 
-            path = np.array(outer_hist)
-            plt.plot(path[:, 0], path[:, 1], "bo-", markersize=4, label="Central Path")
-            plt.scatter(*final_x, color="red", s=100, label="Solution")
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.title("LP: Central Path in 2D")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join("output", "lp_central_path.png"), dpi=300)
+        plt.close()
 
-            plt.xlabel("X")
-            plt.ylabel("Y")
-            plt.title("LP: Central Path in 2D")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(os.path.join("output", "lp_central_path.png"), dpi=300)
-            plt.close()
-
-            objectives = [-obj for _, obj in solver.outer_history]
-            plt.figure(figsize=(10, 6))
-            plt.plot(objectives, "bo-")
-            plt.xlabel("Outer Iteration")
-            plt.ylabel("Objective Value (x+y)")
-            plt.title("LP: Objective Value vs. Iteration")
-            plt.grid(True)
-            plt.savefig(os.path.join("output", "lp_objective_history.png"), dpi=300)
-            plt.close()
+        objectives = [-obj for _, obj in solver.outer_history]
+        plt.figure(figsize=(10, 6))
+        plt.plot(objectives, "bo-")
+        plt.xlabel("Outer Iteration")
+        plt.ylabel("Objective Value (x+y)")
+        plt.title("LP: Objective Value vs. Iteration")
+        plt.grid(True)
+        plt.savefig(os.path.join("output", "lp_objective_history.png"), dpi=300)
+        plt.close()
 
 
 if __name__ == "__main__":
