@@ -1,4 +1,4 @@
-import unittest
+﻿import unittest
 import numpy as np
 import os
 
@@ -57,7 +57,7 @@ class TestConstrainedMin(unittest.TestCase):
 
             vertices = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
             ax.plot_trisurf(
-                vertices[:, 0], vertices[:, 1], vertices[:, 2], alpha=0.2, color="gray"
+                vertices[:, 0], vertices[:, 1], vertices[:, 2], alpha=0.2, color="green"
             )
 
             path = np.array(outer_hist)
@@ -75,7 +75,13 @@ class TestConstrainedMin(unittest.TestCase):
             ax.set_ylabel("Y")
             ax.set_zlabel("Z")
             ax.set_title("QP: Central Path in 3D")
-            ax.legend()
+
+            feasible_proxy = plt.Rectangle((0, 0), 1, 1, color="green", alpha=0.2)
+            handles, labels = ax.get_legend_handles_labels()
+            handles.insert(0, feasible_proxy)
+            labels.insert(0, "Feasible Region")
+            ax.legend(handles, labels)
+
             plt.savefig(os.path.join("output", "qp_central_path.png"), dpi=300)
             plt.close()
 
@@ -119,11 +125,13 @@ class TestConstrainedMin(unittest.TestCase):
 
             plt.figure(figsize=(10, 8))
 
-            vertices = np.array([[1, 0], [2, 0], [2, 1], [1, 1]])
+            x_vals = np.array([0, 1, 2, 2])
+            y_vals = np.array([1, 0, 0, 1])
+
             plt.fill(
-                vertices[:, 0],
-                vertices[:, 1],
-                "gray",
+                x_vals,
+                y_vals,
+                "green",
                 alpha=0.2,
                 label="Feasible Region",
             )
